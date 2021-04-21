@@ -1,0 +1,197 @@
+---
+title: "PAPfor indicators"
+author: "Mélanie Weynants"
+date: "4/20/2021"
+header-includes:
+  - \usepackage[section]{placeins}
+output:
+  bookdown::pdf_document2: default
+  bookdown::html_document2: default
+  bookdown::word_document2: default
+always_allow_html: true
+bibliography: ["references.bib"]
+---
+
+```{r, setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE, message=FALSE, results = 'hide') #,fig.width=10
+library(tidyverse)
+
+col_pa <- c("PA" = "#90c14f", "Total" = "#70b6d1")
+eco_cols <- c('coral' = '#e65025', 'seagrass' = '#36aa49', 'mangrove' = '#720f11', 'modSeagrass' = '#36aa49')
+biopama_cols = c("#90c14f", "#41ad53", "#61ab79", "#71a6a1","#91b090", 
+                 "#a7d1e5","#cf785e", "#a25b28", "#70b6d1", "#679b95",
+                 "#36aa49", "#90c04e", "#e65025", "#70b6d1","#cc775d" )
+
+library("rnaturalearth")
+library("rnaturalearthdata")
+world <- ne_countries(scale = "medium", returnclass = "sf")
+```
+
+# Context
+
+PAPfor is an EU funded programme that aims at supporting the sustainable management of transboundary tropical moist forest landscapes in west Africa. Its objective is to reduce conflicts between protected areas management services and local populations who often perceive these areas as an obstacle to economic activities.
+
+Objectives:
+
+- Restore ecosystems functions and maintain water resources
+
+- Reduce illegal wildlife trade and dimanstle organised crime
+
+- Support private (re)foretstaion initiatives
+
+- Reinforce regional cooperation and contribute to the "Plan de convergence pour la gestion et l'utilisation des écosystèmes forestiers en Afrique de l'Ouest"
+
+- Contribute to climate change objectives pledged by countries in the Paris Agreement.
+
+The key landscapes identified by the programme are:
+
+- Tai (Côte d'Ivoire) and Grebo-Krahn-Sapo (Liberia)
+
+- Mount Nimba (Côte d'Ivoire and Liberia)
+
+- Gola-Loga-Foya (Liberia and Sierra Leone)
+
+- Mano-Wolingi-Wonegizi-Ziane (Sierra Leone and Guinea)
+
+- Cross River (Nigeria)
+
+- Outamba-Kilimi-Kuru Hills-Pinselli-Soya (Sierra Leone)
+
+Table \@ref(tab:tblklc) give the acronyms of the landscapes as reported in the EU report Larger than Elephants [@LtE].
+
+```{r tblklc, results='asis'}
+klc <- sf::read_sf("/Users/mela/JRCbox/BIOPAMA/klc_20200921/klc_20200921_proposal.shp")
+
+klc_papfor <- klc %>% 
+  filter(KLC_ID %in% c("CAF_01", "WAF_10", "WAF_11", "WAF_12", "WAF_21"))
+
+knitr::kable(klc_papfor %>% as.data.frame() %>% dplyr::select(KLC_ID, KLC_name, Area_km2), caption="Key landscapes")
+```
+
+Figure \@ref(fig:mapklc) presents the landscaapes on a map, with their boundaries as revised in 2020 [@klc2020].
+
+```{r mapklc, fig.cap="Map of PAPfor landscapes"}
+
+ggplot(data = world) +
+  geom_sf() + 
+  geom_sf(data = klc_papfor, aes(fill = KLC_ID)) +
+  coord_sf(xlim = c(-13, 13), ylim = c(0,15)) +
+  #guides(fill = guide_legend(direction = "horizontal", position = )) +
+  theme_minimal() + 
+  theme(legend.position = "bottom")
+```
+
+# Tropical moist forest
+
+The status of the tropical moist forest at the end of 2019 is available through the EC JRC product tracking long-term (1990-2019) deforestation and degradation in tropical moist forests (TMF_2019_v1) by @Vancutsem21.
+
+The last year of analysis in the product corresponds with the start of the PAPfor programme and could serve as reference for the initial state.
+
+The product is available on Google Earth Engine, where coverage statistics can be calculated. The results of the analysis for the five PAPfor landscapes are given at table\@ref(tab:tbltmf).
+
+Figure \@ref(fig:figtmf) shows the distribution of the TMF product classes in the PAPfor landscapes and inside their protected areas.
+
+```{r, figtmf, fig.cap="Tropical moist forest coverage in PAPfor landscapes", fig.height=8}
+
+# load data
+tmf <- read_csv("../outputs/TMFstats_KLC.csv") 
+
+# prepare for plotting
+tmf_plot <- tmf %>%
+  select(KLC_ID, KLC_name, !contains("KLC"), -`system:index`, -Year, -`.geo`) %>%
+  pivot_longer(cols = Deforested:Water_PA, names_to = "Class", values_to ="Area") %>%
+  separate(col = Class, sep = "_", into = c("Class", "PA"), fill = "right") %>%
+  replace_na(list(PA = "Total")) %>%
+  group_by(PA, KLC_ID) %>%
+  mutate(Area_PA = sum(Area)) %>%
+  ungroup() %>%
+  mutate(Area_pc = Area/Area_PA*100)
+
+# plot  
+ggplot(tmf_plot, aes(y = Area, x = Class, fill = PA))+
+  geom_col(position = "dodge") +
+  facet_grid(KLC_ID ~ ., scales = "free") + 
+  scale_x_discrete(limits = (c("UndisturbedTMF", "DegradedTMF", "RegrownForest", "Deforested", "Water", "Other")), ) +
+  scale_fill_manual(values = col_pa) +
+  ylab(expression(paste("Area (", km^2, ")")))+ 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+Figure \@ref(fig:figtmfpc) shows the distibution of classes in relative terms.
+
+```{r, figtmfpc, fig.cap="Proportion of tropical moist forest coverage in PAPfor landscapes and their protected areas.",fig.height=8}
+
+# plot
+ggplot(tmf_plot, aes(x = Area_pc, y = Class, fill = PA))+
+  geom_col(position="dodge") +
+  facet_grid(KLC_ID ~ ., scales = "free") + 
+  scale_y_discrete(limits = rev(c("UndisturbedTMF", "DegradedTMF", "RegrownForest", "Deforested", "Water", "Other"))) +
+  scale_fill_manual(values = col_pa) + 
+  xlab("Area proportion (%)")
+```
+
+# Forest loss
+
+The analysis of version 1.8 of the tree cover loss data [@Hansen-gfc] gives a snapshot of the deforestation trend before and during the project.
+
+Figure \@ref(fig:figgfc) shows the trend of forest loss in the PAPfor landscapes and inside their protected areas.
+
+```{r, figgfc, fig.cap="Area of forest loss in PAPfor landscapes between 2000 and 2020.", fig.height=8}
+gfc <- read_csv("../outputs/GFCstats_KLC_papfor.csv") %>%
+  select(-`system:index`, -`.geo`) %>%
+  pivot_longer(cols = `2001`:`2020_PA`, names_to = "Year", values_to = "Area") %>%
+  separate(col = Year, sep = "_", into = c("Year", "PA"), fill = "right") %>%
+  replace_na(list(PA = "Total")) %>%
+  mutate(Year = as.numeric(Year))
+
+ggplot(gfc, aes(x = Year, y = Area, colour = PA)) +
+  geom_line() +
+  facet_grid(KLC_ID~., scales = "free") +
+  scale_color_manual(values = col_pa) +
+  ylab(expression(paste("Area (", km^2, ")")))
+
+```
+
+Figure \@ref(fig:figgfcpc) shows the trend of forest loss in the PAPfor landscapes as a percentage of the total area and inside their protected areas as a percentage of the total area under protection.
+
+```{r, figgfcpc, fig.cap="Proportion of area deforested every year in PAPfor landscapes between 2000 and 2020.", fig.height=8}
+
+gfc_pc <- gfc %>%
+  group_by(PA) %>%
+  mutate(Area_PA = sum(Area)) %>%
+  ungroup() %>%
+  mutate(Area_pc = Area/Area_PA*100)
+
+ggplot(gfc_pc, aes(x = Year, y = Area_pc, colour = PA)) +
+  geom_line() +
+  facet_grid(KLC_ID~., scales = "free") +
+  scale_color_manual(values = col_pa) + 
+  ylab("Area proportion (%)")
+```
+
+
+# Method
+The coverage statistics were calculated in Google Earth Engine. The JavaScript code is available at [https://code.earthengine.google.com/d551f2c73e2bbbe0e6d15a88d6e902e3?noload=true](https://code.earthengine.google.com/d551f2c73e2bbbe0e6d15a88d6e902e3?noload=true).
+
+The figures were drawn in `r R.Version()$version.string` @R-base with packages dplyr [@dplyr] and ggplot2 [@ggplot2].
+
+
+# Appendix
+## TMF data
+Areas are in km^2^
+```{r, tbltmf, results='asis'}
+knitr::kable(tmf %>%
+  select(KLC_ID, UndisturbedTMF, DegradedTMF, RegrownForest, Deforested, Water, Other))
+```
+
+## GFC data
+Areas are in km^2^
+```{r, tblgfc, results='asis'}
+knitr::kable(gfc %>% 
+               select(-Area_km2, -KLC_name) %>%
+               pivot_wider(
+                 names_from = KLC_ID, 
+                 values_from = Area))
+```
+
+# References {-}
