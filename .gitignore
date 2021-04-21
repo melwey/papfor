@@ -41,6 +41,7 @@ vignettes/*.pdf
 # rmarkdown outputs
 *.pdf
 *.docx
+*.html
 
 # mac
 .DS_Store

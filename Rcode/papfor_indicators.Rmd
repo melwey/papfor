@@ -5,9 +5,12 @@ date: "4/20/2021"
 header-includes:
   - \usepackage[section]{placeins}
 output:
+  bookdown::html_document2: 
+    keep_md: true
   bookdown::pdf_document2: default
-  bookdown::html_document2: default
   bookdown::word_document2: default
+  html_document:
+    keep_md: true
 always_allow_html: true
 bibliography: ["references.bib"]
 ---
