@@ -104,7 +104,10 @@ tmf_plot <- tmf %>%
   select(KLC_ID, KLC_name, !contains("KLC"), -`system:index`, -Year, -`.geo`) %>%
   pivot_longer(cols = Deforested:Water_PA, names_to = "Class", values_to ="Area") %>%
   separate(col = Class, sep = "_", into = c("Class", "PA"), fill = "right") %>%
-  replace_na(list(PA = "Total")) %>%
+  mutate(PA = if_else(is.na(PA),"Total", "Inside")) %>%
+  pivot_wider(names_from = PA, values_from = Area) %>%
+  mutate(Outside = Total - Inside) %>%
+  pivot_longer(cols = Total:Outside, names_to = "PA", values_to = "Area") %>%
   group_by(PA, KLC_ID) %>%
   mutate(Area_PA = sum(Area)) %>%
   ungroup() %>%
@@ -115,7 +118,7 @@ ggplot(tmf_plot, aes(y = Area, x = Class, fill = PA))+
   geom_col(position = "dodge") +
   facet_grid(KLC_ID ~ ., scales = "free") + 
   scale_x_discrete(limits = (c("UndisturbedTMF", "DegradedTMF", "RegrownForest", "Deforested", "Water", "Other")), ) +
-  scale_fill_manual(values = col_pa) +
+  # scale_fill_manual(values = col_pa) +
   ylab(expression(paste("Area (", km^2, ")")))+ 
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
@@ -129,7 +132,7 @@ ggplot(tmf_plot, aes(x = Area_pc, y = Class, fill = PA))+
   geom_col(position="dodge") +
   facet_grid(KLC_ID ~ ., scales = "free") + 
   scale_y_discrete(limits = rev(c("UndisturbedTMF", "DegradedTMF", "RegrownForest", "Deforested", "Water", "Other"))) +
-  scale_fill_manual(values = col_pa) + 
+  # scale_fill_manual(values = col_pa) + 
   xlab("Area proportion (%)")
 ```
 
@@ -144,13 +147,16 @@ gfc <- read_csv("../outputs/GFCstats_KLC_papfor.csv") %>%
   select(-`system:index`, -`.geo`) %>%
   pivot_longer(cols = `2001`:`2020_PA`, names_to = "Year", values_to = "Area") %>%
   separate(col = Year, sep = "_", into = c("Year", "PA"), fill = "right") %>%
-  replace_na(list(PA = "Total")) %>%
+  mutate(PA = if_else(is.na(PA),"Total", "Inside")) %>%
+  pivot_wider(names_from = PA, values_from = Area) %>%
+  mutate(Outside = Total - Inside) %>%
+  pivot_longer(cols = Total:Outside, names_to = "PA", values_to = "Area") %>%
   mutate(Year = as.numeric(Year))
 
 ggplot(gfc, aes(x = Year, y = Area, colour = PA)) +
   geom_line() +
   facet_grid(KLC_ID~., scales = "free") +
-  scale_color_manual(values = col_pa) +
+  # scale_color_manual(values = col_pa) +
   ylab(expression(paste("Area (", km^2, ")")))
 
 ```
@@ -158,30 +164,31 @@ ggplot(gfc, aes(x = Year, y = Area, colour = PA)) +
 Figure \@ref(fig:figgfcpc) shows the trend of forest loss in the PAPfor landscapes as a percentage of the total area and inside their protected areas as a percentage of the total area under protection.
 
 ```{r, figgfcpc, fig.cap="Proportion of area deforested every year in PAPfor landscapes between 2000 and 2020.", fig.height=8}
+### calculate total area grouped by pa and klc first, e.g. from tmf
+pa_areas <- tmf_plot %>%
+  select(KLC_ID, PA, Area_PA)
 
 gfc_pc <- gfc %>%
-  group_by(PA) %>%
-  mutate(Area_PA = sum(Area)) %>%
-  ungroup() %>%
+  left_join(pa_areas) %>%
   mutate(Area_pc = Area/Area_PA*100)
 
 ggplot(gfc_pc, aes(x = Year, y = Area_pc, colour = PA)) +
   geom_line() +
   facet_grid(KLC_ID~., scales = "free") +
-  scale_color_manual(values = col_pa) + 
-  ylab("Area proportion (%)")
+  # scale_color_manual(values = col_pa) + 
+  ylab("Percentage of KLC area with forest loss")
 ```
 
 
 # Method
 The coverage statistics were calculated in Google Earth Engine. The JavaScript code is available at [https://code.earthengine.google.com/d551f2c73e2bbbe0e6d15a88d6e902e3?noload=true](https://code.earthengine.google.com/d551f2c73e2bbbe0e6d15a88d6e902e3?noload=true).
 
-The figures were drawn in `r R.Version()$version.string` @R-base with packages dplyr [@dplyr] and ggplot2 [@ggplot2].
+The figures were drawn in `r R.Version()$version.string` @R-base with packages dplyr [@dplyr] and ggplot2 [@ggplot2]. The scripts are available on github repository [melwey/papfor](https://github.com/melwey/papfor/)
 
 
 # Appendix
 ## TMF data
-Areas are in km^2^
+Areas are in km^2^ at the end of 2019.
 ```{r, tbltmf, results='asis'}
 knitr::kable(tmf %>%
   select(KLC_ID, UndisturbedTMF, DegradedTMF, RegrownForest, Deforested, Water, Other))
